@@ -1,6 +1,38 @@
 # Élara – Clothing Rental Platform
 
-Élara is a web-based clothing rental platform developed as a Computer Science graduation project at Djillali Liabes University, Algeria.
+Élara is a web-based clothing rental platform developed as a Computer Science graduation project at Djillali Liabes University, Sidi Bel Abbès, Algeria.
+
+## Screenshots
+
+### Admin Dashboard
+![Admin Dashboard](screenshots/01_elara_screenshot.png)
+
+### Add Product
+![Add Product](screenshots/02_elara_screenshot.png)
+
+### Product Management
+![Product Management](screenshots/03_elara_screenshot.png)
+
+### User Profile
+![User Profile](screenshots/04_elara_screenshot.png)
+
+### Forgot Password
+![Forgot Password](screenshots/05_elara_screenshot.png)
+
+### Email Verification
+![Email Verification](screenshots/06_elara_screenshot.png)
+
+### Reset Password
+![Reset Password](screenshots/07_elara_screenshot.png)
+
+### Edit Product
+![Edit Product](screenshots/08_elara_screenshot.png)
+
+### Product Stock Management
+![Product Stock Management](screenshots/09_elara_screenshot.png)
+
+### Additional Interface
+![Élara Interface](screenshots/10_elara_screenshot.png)
 
 ## Features
 
@@ -12,27 +44,30 @@
 - View personal rental history
 - Admin dashboard for product and rental management
 - Product stock and size management
+- Password recovery through email verification
 
-## Technology
+## Technologies
 
 - PHP
 - MySQL / MariaDB
 - HTML, CSS and JavaScript
-- Bootstrap (where used in the interface)
+- Bootstrap
 - PHPMailer
-- XAMPP for local development
+- XAMPP
 
-## Project structure
+## Project Structure
 
-- `index.php` – product catalogue
-- `product.php` – product details
-- `login.php` and `register.php` – authentication
-- `rent.php` and `my_rentals.php` – rental workflow
-- `dashboard.php` – administration dashboard
-- `location_vetement.sql` – database schema
-- `uploads/` – product images
+- `index.php` – Product catalogue
+- `product.php` – Product details
+- `login.php` and `register.php` – Authentication
+- `rent.php` and `my_rentals.php` – Rental workflow
+- `dashboard.php` – Administration dashboard
+- `location_vetement.sql` – Database schema
+- `uploads/` – Product images
+- `screenshots/` – Project screenshots
+- `PHPmailer/` – Email functionality
 
-## Local setup
+## Local Setup
 
 1. Install XAMPP and start Apache and MySQL.
 2. Create a database named `location_vetement` in phpMyAdmin.
@@ -40,17 +75,22 @@
 4. Copy `config.example.php` to `config.local.php`.
 5. Update the database and SMTP settings in `config.local.php`.
 6. Place the project folder inside XAMPP's `htdocs` directory.
-7. Open the project at `http://localhost/licence` (adjust the folder name if needed).
+7. Open `http://localhost/licence` in your browser. Adjust the folder name if needed.
 
 ## Security
 
-- `config.local.php` contains private local configuration and must never be committed.
-- Use a dedicated database account in production instead of the XAMPP root account.
-- Configure SMTP credentials locally. Do not publish app passwords or API keys.
+- Keep `config.local.php` private.
+- Never upload passwords, SMTP credentials or API keys.
+- Use a dedicated database account in production.
 
-## Academic information
+## Academic Information
 
 - Project: Élara
 - Field: Computer Science
-- University: Djillali Liabes University, Sidi Bel Abbès, Algeria
-- Academic year: 2025/2026
+- University: Djillali Liabes University
+- Location: Sidi Bel Abbès, Algeria
+- Academic Year: 2025/2026
+
+## License
+
+This project is licensed under the MIT License.
