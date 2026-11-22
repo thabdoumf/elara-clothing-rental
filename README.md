@@ -2,59 +2,55 @@
 
 Élara is a web-based clothing rental platform developed as a Computer Science graduation project at Djillali Liabes University, Algeria.
 
-The platform helps customers browse clothing collections and manage rental requests.
-
 ## Features
 
-- Browse available clothing products
-- Search and filter products by category
-- Product size management
-- Submit clothing rental requests
+- Browse clothing products
+- Search and filter products by category, gender and price
+- View product details and available sizes
+- Register and log in
+- Submit and manage rental requests
 - View personal rental history
-- Admin dashboard
-- Manage products and rental requests
+- Admin dashboard for product and rental management
+- Product stock and size management
 
-## Technologies
+## Technology
 
 - PHP
-- MySQL
-- HTML5
-- CSS3
-- JavaScript
-- XAMPP
+- MySQL / MariaDB
+- HTML, CSS and JavaScript
+- Bootstrap (where used in the interface)
+- PHPMailer
+- XAMPP for local development
 
-## Database
+## Project structure
 
-The application uses MySQL to manage:
+- `index.php` – product catalogue
+- `product.php` – product details
+- `login.php` and `register.php` – authentication
+- `rent.php` and `my_rentals.php` – rental workflow
+- `dashboard.php` – administration dashboard
+- `location_vetement.sql` – database schema
+- `uploads/` – product images
 
-- Users
-- Products
-- Product sizes
-- Categories
-- Rentals
-- Delivery records
+## Local setup
 
-## Installation
+1. Install XAMPP and start Apache and MySQL.
+2. Create a database named `location_vetement` in phpMyAdmin.
+3. Import `location_vetement.sql`.
+4. Copy `config.example.php` to `config.local.php`.
+5. Update the database and SMTP settings in `config.local.php`.
+6. Place the project folder inside XAMPP's `htdocs` directory.
+7. Open the project at `http://localhost/licence` (adjust the folder name if needed).
 
-1. Install XAMPP.
-2. Clone or download this repository.
-3. Place the project folder inside `htdocs`.
-4. Start Apache and MySQL.
-5. Import the database SQL file using phpMyAdmin.
-6. Configure the database connection in `db.php`.
-7. Open `http://localhost/elara` in your browser.
+## Security
 
-## Project Information
+- `config.local.php` contains private local configuration and must never be committed.
+- Use a dedicated database account in production instead of the XAMPP root account.
+- Configure SMTP credentials locally. Do not publish app passwords or API keys.
+
+## Academic information
 
 - Project: Élara
 - Field: Computer Science
-- University: Djillali Liabes University
+- University: Djillali Liabes University, Sidi Bel Abbès, Algeria
 - Academic year: 2025/2026
-
-## Author
-
-Abderrahmane Miloudi
-
-## Status
-
-Academic project. Documentation and source files are being organized.
