@@ -7,7 +7,10 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-$cart_id = (int)($_GET['id'] ?? 0);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: cart.php'); exit(); }
+$token = $_SESSION['csrf_token'] ?? '';
+if (!$token || !hash_equals($token, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
+$cart_id = (int)($_POST['id'] ?? 0);
 $user_id = (int)$_SESSION['user_id'];
 
 if ($cart_id > 0) {
