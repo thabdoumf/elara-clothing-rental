@@ -60,19 +60,29 @@ if (isset($_POST['confirm'])) {
         $days  = $startDate->diff($endDate)->days;
         $total = $days * $product['price_per_day'];
 
-        $stmt = $conn->prepare("
-            INSERT INTO rentals (user_id, product_id, size, start_date, end_date, total_price, status)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending')
-        ");
-        $stmt->bind_param("iisssd", $_SESSION['user_id'], $product_id, $size, $start, $end, $total);
-        $stmt->execute();
-        $stmt->close();
+        $conn->begin_transaction();
+        try {
+            $reserve = $conn->prepare("UPDATE product_sizes SET stock=stock-1 WHERE product_id=? AND size=? AND stock>0");
+            $reserve->bind_param("is", $product_id, $size);
+            $reserve->execute();
+            if ($reserve->affected_rows !== 1) {
+                throw new RuntimeException("Cet article n'est plus disponible.");
+            }
+            $reserve->close();
 
-        /* Decrease stock */
-        $conn->query("UPDATE product_sizes SET stock = stock - 1 WHERE product_id = $product_id AND size = '" . $conn->real_escape_string($size) . "'");
-
-        header("Location: my_rentals.php");
-        exit();
+            $userId = (int)$_SESSION['user_id'];
+            $stmt = $conn->prepare("INSERT INTO rentals (user_id, product_id, size, start_date, end_date, total_price, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')");
+            $stmt->bind_param("iisssd", $userId, $product_id, $size, $start, $end, $total);
+            $stmt->execute();
+            $stmt->close();
+            $conn->commit();
+            header("Location: my_rentals.php");
+            exit();
+        } catch (Throwable $e) {
+            $conn->rollback();
+            error_log('Single rental creation failed: ' . $e->getMessage());
+            $error = $e instanceof RuntimeException ? $e->getMessage() : "Impossible de créer la réservation.";
+        }
     }
 }
 
