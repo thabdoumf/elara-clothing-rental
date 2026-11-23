@@ -28,6 +28,7 @@ if (!$product) {
 }
 
 if (isset($_POST['update'])) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
 
     $name     = trim($_POST['name']);
     $desc     = trim($_POST['description']);
@@ -58,18 +59,28 @@ if (isset($_POST['update'])) {
         $product['category']      = $category;
         $product['gender']        = $gender;
 
-        if (!empty($_FILES['image']['name'])) {
-            $imageName = basename($_FILES['image']['name']);
-            $ext       = strtolower(pathinfo($imageName, PATHINFO_EXTENSION));
-            $allowed   = ['jpg', 'jpeg', 'png', 'webp'];
-            if (in_array($ext, $allowed)) {
-                $safeImage = uniqid('img_', true) . '.' . $ext;
-                move_uploaded_file($_FILES['image']['tmp_name'], "uploads/" . $safeImage);
-                $imgStmt = $conn->prepare("UPDATE products SET image=? WHERE id=?");
-                $imgStmt->bind_param("si", $safeImage, $id);
-                $imgStmt->execute();
-                $imgStmt->close();
-                $product['image'] = $safeImage;
+        if (isset($_FILES['image']) && ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $ext = strtolower(pathinfo($_FILES['image']['name'] ?? '', PATHINFO_EXTENSION));
+            $allowed = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+            $tmp = $_FILES['image']['tmp_name'] ?? '';
+            $validUpload = $tmp !== '' && is_uploaded_file($tmp);
+            $mime = $validUpload ? (new finfo(FILEINFO_MIME_TYPE))->file($tmp) : '';
+            $imageInfo = $validUpload ? @getimagesize($tmp) : false;
+            if (($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK ||
+                ($_FILES['image']['size'] ?? 0) > 5242880 ||
+                !isset($allowed[$ext]) || $mime !== ($allowed[$ext] ?? '') || !$imageInfo) {
+                $error = "Image invalide. JPG, PNG ou WEBP, 5 Mo maximum.";
+            } else {
+                $safeImage = bin2hex(random_bytes(16)) . '.' . $ext;
+                if (!move_uploaded_file($tmp, __DIR__ . "/uploads/" . $safeImage)) {
+                    $error = "Impossible d'enregistrer l'image.";
+                } else {
+                    $imgStmt = $conn->prepare("UPDATE products SET image=? WHERE id=?");
+                    $imgStmt->bind_param("si", $safeImage, $id);
+                    $imgStmt->execute();
+                    $imgStmt->close();
+                    $product['image'] = $safeImage;
+                }
             }
         }
 
@@ -461,6 +472,7 @@ while ($c = $categories->fetch_assoc()) $catList[] = $c['category'];
                 <?php endif; ?>
 
                 <form method="POST" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
                     <!-- INFOS GÉNÉRALES -->
                     <div class="form-section">
