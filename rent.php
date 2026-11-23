@@ -40,9 +40,12 @@ if (!$stockRow || $stockRow['stock'] <= 0) {
 }
 
 $error = "";
+if (empty($_SESSION["csrf_token"])) { $_SESSION["csrf_token"] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION["csrf_token"];
 
 /* Handle confirmation */
 if (isset($_POST['confirm'])) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
     $start = $_POST['start_date'] ?? '';
     $end   = $_POST['end_date']   ?? '';
 
@@ -497,6 +500,7 @@ $gmap = ['Men'=>'Homme','Women'=>'Femme','Unisex'=>'Unisexe'];
         <?php endif; ?>
 
         <form method="POST" id="rentForm">
+<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
             <input type="hidden" name="product_id" value="<?php echo $product_id; ?>">
             <input type="hidden" name="size" value="<?php echo htmlspecialchars($size); ?>">
 
