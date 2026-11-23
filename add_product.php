@@ -1,73 +1,42 @@
 <?php
 session_start();
 include("db.php");
-
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
-    header("Location: index.php");
-    exit();
-}
-
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') { header("Location: index.php"); exit(); }
 $adminName = $_SESSION['user_name'] ?? 'Admin';
-$error   = "";
-$success = "";
-
-$categories = $conn->query("
-    SELECT DISTINCT category FROM products
-    WHERE category IS NOT NULL AND category != ''
-    ORDER BY category
-");
+$error = '';
+if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION['csrf_token'];
+$categories = $conn->query("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category");
 $catList = [];
-while ($c = $categories->fetch_assoc()) $catList[] = $c['category'];
-
+while ($cat = $categories->fetch_assoc()) { $catList[] = $cat['category']; }
 if (isset($_POST['add'])) {
-
-    $name     = trim($_POST['name']);
-    $desc     = trim($_POST['description']);
-    $price    = (float)$_POST['price'];
-    $category = trim($_POST['category']);
-    $gender   = trim($_POST['gender']);
-    $allowed_genders = ['Men', 'Women', 'Unisex'];
-
-    if (empty($name) || $price <= 0 || empty($category)) {
-        $error = "Nom, catégorie et prix sont obligatoires.";
-    } elseif (!in_array($gender, $allowed_genders)) {
-        $error = "Genre invalide.";
-    } elseif (empty($_FILES['image']['name'])) {
-        $error = "Une image est requise.";
-    } else {
-        $imageName = basename($_FILES['image']['name']);
-        $ext       = strtolower(pathinfo($imageName, PATHINFO_EXTENSION));
-        $allowed   = ['jpg', 'jpeg', 'png', 'webp'];
-
-        if (!in_array($ext, $allowed)) {
-            $error = "Format d'image invalide (jpg, jpeg, png, webp).";
-        } else {
-            $safeImage = uniqid('img_', true) . '.' . $ext;
-            move_uploaded_file($_FILES['image']['tmp_name'], "uploads/" . $safeImage);
-
-            $stmt = $conn->prepare(
-                "INSERT INTO products (name, description, price_per_day, category, image, gender)
-                 VALUES (?, ?, ?, ?, ?, ?)"
-            );
-            $stmt->bind_param("ssdsss", $name, $desc, $price, $category, $safeImage, $gender);
-            $stmt->execute();
-            $product_id = $conn->insert_id;
-            $stmt->close();
-
-            $sizeStmt = $conn->prepare(
-                "INSERT INTO product_sizes (product_id, size, stock) VALUES (?, ?, ?)"
-            );
-            foreach (['S', 'M', 'L', 'XL'] as $sz) {
-                $stock = max(0, (int)($_POST[$sz] ?? 0));
-                $sizeStmt->bind_param("isi", $product_id, $sz, $stock);
-                $sizeStmt->execute();
-            }
-            $sizeStmt->close();
-
-            header("Location: dashboard.php");
-            exit();
-        }
-    }
+ if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
+ $name = trim($_POST['name'] ?? ''); $desc = trim($_POST['description'] ?? '');
+ $price = filter_var($_POST['price'] ?? null, FILTER_VALIDATE_FLOAT); $category = trim($_POST['category'] ?? ''); $gender = trim($_POST['gender'] ?? '');
+ if ($name === '' || $price === false || $price <= 0 || $category === '') { $error = 'Nom, catégorie et prix sont obligatoires.'; }
+ elseif (!in_array($gender, ['Men','Women','Unisex'], true)) { $error = 'Genre invalide.'; }
+ elseif (!isset($_FILES['image'])) { $error = 'Une image est requise.'; }
+ else {
+  $ext = strtolower(pathinfo($_FILES['image']['name'] ?? '', PATHINFO_EXTENSION));
+  $allowed = ['jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png','webp'=>'image/webp'];
+  $tmp = $_FILES['image']['tmp_name'] ?? ''; $validUpload = $tmp !== '' && is_uploaded_file($tmp);
+  $mime = $validUpload ? (new finfo(FILEINFO_MIME_TYPE))->file($tmp) : ''; $imageInfo = $validUpload ? @getimagesize($tmp) : false;
+  if (($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || ($_FILES['image']['size'] ?? 0) > 5242880 || !isset($allowed[$ext]) || $mime !== ($allowed[$ext] ?? '') || !$imageInfo) { $error = 'Image invalide. JPG, PNG ou WEBP, 5 Mo maximum.'; }
+  else {
+   $safeImage = bin2hex(random_bytes(16)).'.'.$ext;
+   if (!move_uploaded_file($tmp, __DIR__.'/uploads/'.$safeImage)) { $error = 'Impossible d’enregistrer l’image.'; }
+   else {
+    $conn->begin_transaction();
+    try {
+     $stmt=$conn->prepare('INSERT INTO products (name, description, price_per_day, category, image, gender) VALUES (?, ?, ?, ?, ?, ?)');
+     $stmt->bind_param('ssdsss',$name,$desc,$price,$category,$safeImage,$gender); $stmt->execute(); $productId=$conn->insert_id; $stmt->close();
+     $sizeStmt=$conn->prepare('INSERT INTO product_sizes (product_id, size, stock) VALUES (?, ?, ?)');
+     foreach (['S','M','L','XL'] as $size) { $stock=max(0,(int)($_POST[$size]??0)); $sizeStmt->bind_param('isi',$productId,$size,$stock); $sizeStmt->execute(); }
+     $sizeStmt->close(); $conn->commit(); header('Location: dashboard.php'); exit();
+    } catch (Throwable $e) { $conn->rollback(); @unlink(__DIR__.'/uploads/'.$safeImage); error_log('Product creation failed: '.$e->getMessage()); $error='Impossible de créer le produit.'; }
+   }
+  }
+ }
 }
 ?>
 <!DOCTYPE html>
@@ -405,6 +374,7 @@ if (isset($_POST['add'])) {
             <?php endif; ?>
 
             <form method="POST" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
                 <!-- INFOS GÉNÉRALES -->
                 <div class="form-section">
