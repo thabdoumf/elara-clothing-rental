@@ -44,7 +44,11 @@
 - View personal rental history
 - Admin dashboard for product and rental management
 - Product stock and size management
-- Password recovery through email verification
+- Password recovery through email verification with request throttling
+- CSRF protection on authentication, rental, cart, review and admin actions
+- Validated product image uploads with a 5 MB limit
+- Archived products are hidden from the storefront while rental history is preserved
+- Payment page does not collect card details until a real payment provider is integrated
 
 ## Technologies
 
@@ -72,10 +76,11 @@
 1. Install XAMPP and start Apache and MySQL.
 2. Create a database named `location_vetement` in phpMyAdmin.
 3. Import `location_vetement.sql`.
-4. Copy `config.example.php` to `config.local.php`.
-5. Update the database and SMTP settings in `config.local.php`.
-6. Place the project folder inside XAMPP's `htdocs` directory.
-7. Open `http://localhost/licence` in your browser. Adjust the folder name if needed.
+4. Select the `location_vetement` database and run `database_updates.sql` in phpMyAdmin. This adds the cart and password-reset tables and fields required by the current PHP code.
+5. Copy `config.example.php` to `config.local.php`.
+6. Update the database and SMTP settings in `config.local.php`.
+7. Place the project folder inside XAMPP's `htdocs` directory.
+8. Open `http://localhost/licence` in your browser. Adjust the folder name if needed.
 
 ## Security
 
