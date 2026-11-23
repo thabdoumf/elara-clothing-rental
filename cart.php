@@ -8,10 +8,13 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = (int)$_SESSION['user_id'];
+if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION['csrf_token'];
 $error   = '';
 
 // ── Handle checkout atomically ───────────────────────────────────────────────
 if (isset($_POST['checkout'])) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
     $start = $_POST['start_date'] ?? '';
     $end = $_POST['end_date'] ?? '';
     $startDate = DateTime::createFromFormat('!Y-m-d', $start);
@@ -530,10 +533,11 @@ $gmap = ['Men'=>'Homme','Women'=>'Femme','Unisex'=>'Unisexe'];
                     </div>
                 </div>
                 <div class="item-actions">
-                    <a href="cart_remove.php?id=<?php echo $item['cart_id']; ?>" class="btn-remove"
-                       onclick="return confirm('Retirer cet article ?')">
-                        × Retirer
-                    </a>
+                    <form method="POST" action="cart_remove.php" onsubmit="return confirm('Retirer cet article ?')">
+<input type="hidden" name="id" value="<?php echo (int)$item['cart_id']; ?>">
+<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+<button type="submit" class="btn-remove">× Retirer</button>
+</form>
                 </div>
             </div>
             <?php endwhile; ?>
@@ -555,6 +559,7 @@ $gmap = ['Men'=>'Homme','Women'=>'Femme','Unisex'=>'Unisexe'];
             <?php endif; ?>
 
             <form method="POST" id="checkoutForm">
+<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
                 <!-- Date pickers -->
                 <div class="date-section">
