@@ -12,6 +12,8 @@ require __DIR__ . '/PHPMailer/SMTP.php';
 include("db.php");
 
 $error = "";
+if (empty($_SESSION["csrf_token"])) { $_SESSION["csrf_token"] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION["csrf_token"];
 
 // ── SMTP config ──────────────────────────────────────────────────────────────
 if (!defined('SMTP_HOST')) define('SMTP_HOST',  'smtp.gmail.com');
@@ -140,6 +142,7 @@ HTML;
 }
 
 if (isset($_POST['register'])) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
 
     $name      = trim($_POST['name']);
     $email     = trim($_POST['email']);
@@ -591,6 +594,7 @@ $wilayas = [
         <?php endif; ?>
 
         <form method="POST" novalidate>
+<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
             <!-- Row 1: Name -->
             <div class="form-group">
