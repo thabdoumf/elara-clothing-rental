@@ -7,6 +7,9 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
     exit();
 }
 
+if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION['csrf_token'];
+
 /* ── Gender filter ── */
 $gender = $_GET['gender'] ?? '';
 $gender = $conn->real_escape_string($gender);
