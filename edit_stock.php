@@ -7,8 +7,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 }
 
 $id = (int)($_GET['id'] ?? 0);
+if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION['csrf_token'];
 
 if (isset($_POST['update'])) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
     $stock = max(0, (int)$_POST['stock']);
 
     $stmt = $conn->prepare("UPDATE product_sizes SET stock=? WHERE id=?");
@@ -40,7 +43,7 @@ if (!$current) {
 
 <p>Stock actuel : <strong><?php echo (int)$current['stock']; ?></strong></p>
 
-<form method="POST">
+<form method="POST"><input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
     <div class="form-group">
         <label>Nouveau stock</label>
         <input type="number" name="stock" min="0"
