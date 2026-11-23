@@ -1,0 +1,54 @@
+name: MariaDB integration tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  mariadb-integration:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.4
+        env:
+          MARIADB_ROOT_PASSWORD: test-root-password
+          MARIADB_DATABASE: location_vetement
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_USER: root
+      DB_PASS: test-root-password
+      DB_NAME: location_vetement
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli
+      - name: Wait for MariaDB
+        run: |
+          for i in {1..30}; do
+            if mariadb-admin ping -h 127.0.0.1 -uroot -ptest-root-password --silent; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MariaDB did not become ready"
+          exit 1
+      - name: Import the project's original schema
+        run: mariadb -h 127.0.0.1 -uroot -ptest-root-password location_vetement < location_vetement.sql
+      - name: Apply the project's database updates
+        run: mariadb -h 127.0.0.1 -uroot -ptest-root-password location_vetement < database_updates.sql
+      - name: Run registration, cart, booking, and password reset tests
+        run: php tests/mariadb-integration.php
