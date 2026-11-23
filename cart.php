@@ -10,16 +10,15 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = (int)$_SESSION['user_id'];
 $error   = '';
 
-// ── Handle checkout: move all cart items to rentals ──────────────────────────
+// ── Handle checkout atomically ───────────────────────────────────────────────
 if (isset($_POST['checkout'])) {
     $start = $_POST['start_date'] ?? '';
-    $end   = $_POST['end_date']   ?? '';
+    $end = $_POST['end_date'] ?? '';
+    $startDate = DateTime::createFromFormat('!Y-m-d', $start);
+    $endDate = DateTime::createFromFormat('!Y-m-d', $end);
+    $today = new DateTime('today');
 
-    $startDate = DateTime::createFromFormat('Y-m-d', $start);
-    $endDate   = DateTime::createFromFormat('Y-m-d', $end);
-    $today     = new DateTime('today');
-
-    if (!$startDate || !$endDate) {
+    if (!$startDate || !$endDate || $startDate->format('Y-m-d') !== $start || $endDate->format('Y-m-d') !== $end) {
         $error = "Dates invalides.";
     } elseif ($startDate < $today) {
         $error = "La date de début ne peut pas être dans le passé.";
@@ -27,49 +26,59 @@ if (isset($_POST['checkout'])) {
         $error = "La date de fin doit être après la date de début.";
     } else {
         $days = $startDate->diff($endDate)->days;
-
-        // Get all cart items for this user
-        $items = $conn->query("
-            SELECT c.id as cart_id, c.product_id, c.size, p.price_per_day
-            FROM cart c
-            JOIN products p ON p.id = c.product_id
-            WHERE c.user_id = $user_id
-        ");
-
-        $allOk = true;
-        while ($item = $items->fetch_assoc()) {
-            // Re-check stock
-            $sid = (int)$item['product_id'];
-            $sz  = $conn->real_escape_string($item['size']);
-            $sr  = $conn->query("SELECT stock FROM product_sizes WHERE product_id=$sid AND size='$sz'")->fetch_assoc();
-
-            if (!$sr || $sr['stock'] <= 0) {
-                $allOk = false;
-                $error = "Un article n'est plus disponible. Veuillez vider votre panier et recommencer.";
-                break;
-            }
-
-            $total = $days * $item['price_per_day'];
-
-            $stmt = $conn->prepare("
-                INSERT INTO rentals (user_id, product_id, size, start_date, end_date, total_price, status)
-                VALUES (?, ?, ?, ?, ?, ?, 'pending')
-            ");
-            $stmt->bind_param("iisssd", $user_id, $sid, $item['size'], $start, $end, $total);
+        $conn->begin_transaction();
+        try {
+            $stmt = $conn->prepare("SELECT c.id AS cart_id, c.product_id, c.size, p.price_per_day FROM cart c JOIN products p ON p.id=c.product_id WHERE c.user_id=? FOR UPDATE");
+            $stmt->bind_param("i", $user_id);
             $stmt->execute();
+            $items = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmt->close();
 
-            // Decrease stock
-            $conn->query("UPDATE product_sizes SET stock = stock - 1 WHERE product_id=$sid AND size='$sz'");
+            if (!$items) {
+                throw new RuntimeException("Votre panier est vide.");
+            }
 
-            // Remove from cart
-            $cid = (int)$item['cart_id'];
-            $conn->query("DELETE FROM cart WHERE id=$cid");
-        }
+            $stockStmt = $conn->prepare("SELECT stock FROM product_sizes WHERE product_id=? AND size=? FOR UPDATE");
+            $reserveStmt = $conn->prepare("UPDATE product_sizes SET stock=stock-1 WHERE product_id=? AND size=? AND stock>0");
+            $rentalStmt = $conn->prepare("INSERT INTO rentals (user_id, product_id, size, start_date, end_date, total_price, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')");
+            $deleteStmt = $conn->prepare("DELETE FROM cart WHERE id=? AND user_id=?");
 
-        if ($allOk) {
+            foreach ($items as $item) {
+                $productId = (int)$item['product_id'];
+                $size = $item['size'];
+                $stockStmt->bind_param("is", $productId, $size);
+                $stockStmt->execute();
+                $stockRow = $stockStmt->get_result()->fetch_assoc();
+                if (!$stockRow || (int)$stockRow['stock'] < 1) {
+                    throw new RuntimeException("Un article n'est plus disponible. Veuillez actualiser votre panier.");
+                }
+
+                $reserveStmt->bind_param("is", $productId, $size);
+                $reserveStmt->execute();
+                if ($reserveStmt->affected_rows !== 1) {
+                    throw new RuntimeException("Le stock a changé. Veuillez réessayer.");
+                }
+
+                $total = $days * (float)$item['price_per_day'];
+                $rentalStmt->bind_param("iisssd", $user_id, $productId, $size, $start, $end, $total);
+                $rentalStmt->execute();
+
+                $cartId = (int)$item['cart_id'];
+                $deleteStmt->bind_param("ii", $cartId, $user_id);
+                $deleteStmt->execute();
+            }
+
+            $stockStmt->close();
+            $reserveStmt->close();
+            $rentalStmt->close();
+            $deleteStmt->close();
+            $conn->commit();
             header("Location: my_rentals.php?booked=1");
             exit();
+        } catch (Throwable $e) {
+            $conn->rollback();
+            error_log('Cart checkout failed: ' . $e->getMessage());
+            $error = $e instanceof RuntimeException ? $e->getMessage() : "Impossible de traiter votre panier. Veuillez réessayer.";
         }
     }
 }
