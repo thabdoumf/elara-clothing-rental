@@ -9,19 +9,41 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'user') {
 
 $user_id = (int)$_SESSION['user_id'];
 
-/* Cancel pending rental */
-if (isset($_GET['cancel'])) {
-    $cancel_id = (int)$_GET['cancel'];
+if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION['csrf_token'];
 
-    $stmt = $conn->prepare("
-        UPDATE rentals
-        SET status = 'rejected'
-        WHERE id = ? AND user_id = ? AND status = 'pending'
-    ");
-    $stmt->bind_param("ii", $cancel_id, $user_id);
-    $stmt->execute();
-    $stmt->close();
-
+/* Cancel pending rental via POST, validate CSRF, and release its reserved stock. */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel'])) {
+    $postedToken = $_POST['csrf_token'] ?? '';
+    if (!$postedToken || !hash_equals($csrfToken, $postedToken)) {
+        http_response_code(403);
+        exit('Invalid request token.');
+    }
+    $cancel_id = (int)$_POST['cancel'];
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare("SELECT product_id, size FROM rentals WHERE id=? AND user_id=? AND status='pending' FOR UPDATE");
+        $stmt->bind_param("ii", $cancel_id, $user_id);
+        $stmt->execute();
+        $rentalToCancel = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($rentalToCancel) {
+            $stmt = $conn->prepare("UPDATE rentals SET status='rejected' WHERE id=? AND user_id=? AND status='pending'");
+            $stmt->bind_param("ii", $cancel_id, $user_id);
+            $stmt->execute();
+            $stmt->close();
+            $stmt = $conn->prepare("UPDATE product_sizes SET stock=stock+1 WHERE product_id=? AND size=?");
+            $stmt->bind_param("is", $rentalToCancel['product_id'], $rentalToCancel['size']);
+            $stmt->execute();
+            $stmt->close();
+        }
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('Rental cancellation failed: ' . $e->getMessage());
+        http_response_code(500);
+        exit('Unable to cancel rental.');
+    }
     header("Location: my_rentals.php");
     exit();
 }
@@ -490,11 +512,11 @@ $total = count($allRows);
                 <a href="payment.php?rental_id=<?php echo (int)$r['id']; ?>" class="btn-pay-now">
                     💳 Payer
                 </a>
-                <a href="my_rentals.php?cancel=<?php echo (int)$r['id']; ?>"
-                   class="btn-cancel"
-                   onclick="return confirm('Confirmer l\'annulation de cette réservation ?')">
-                    ✕ Annuler
-                </a>
+                <form method="POST" onsubmit="return confirm('Confirmer l\'annulation de cette réservation ?')">
+                    <input type="hidden" name="cancel" value="<?php echo (int)$r['id']; ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                    <button type="submit" class="btn-cancel">✕ Annuler</button>
+                </form>
                 <div class="pending-note">⏳ En attente de validation admin</div>
                 <?php endif; ?>
             </div>
