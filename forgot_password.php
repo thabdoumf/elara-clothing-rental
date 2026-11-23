@@ -22,17 +22,23 @@ if (!defined('SHOP_EMAIL')) define('SHOP_EMAIL', '');
 $step    = 'email';   // email → code → reset → done
 $message = '';
 $error   = '';
+if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION['csrf_token'];
 
 // Clear any leftover session so page always starts fresh
 if (empty($_POST)) {
-    unset($_SESSION['reset_email'], $_SESSION['reset_verified']);
+    unset($_SESSION['reset_email'], $_SESSION['reset_verified'], $_SESSION['reset_code_attempts']);
 }
 
 // ── STEP 1: User submits their email ─────────────────────────────────────────
 if (isset($_POST['send_code'])) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
+    if (!empty($_SESSION['reset_last_sent']) && time() - (int)$_SESSION['reset_last_sent'] < 60) { $error = 'Veuillez attendre une minute avant de demander un autre code.'; }
     $email = trim($_POST['email']);
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if (!empty($error)) {
+        // Request throttled.
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "Adresse email invalide.";
     } else {
         $check = $conn->prepare("SELECT id, name FROM users WHERE email = ?");
@@ -44,6 +50,8 @@ if (isset($_POST['send_code'])) {
 
         if ($check->num_rows > 0) {
             $code    = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $_SESSION['reset_last_sent'] = time();
+            $_SESSION['reset_code_attempts'] = 0;
             $expires = date('Y-m-d H:i:s', time() + 900); // 15 minutes
 
             $del = $conn->prepare("DELETE FROM password_resets WHERE email = ?");
@@ -107,8 +115,12 @@ HTML;
                 $mail->send();
                 // Mail sent successfully — no error shown to user
             } catch (Exception $e) {
-                // Show the real SMTP error so you can debug it
-                $error = "Erreur d'envoi email : " . $mail->ErrorInfo;
+                error_log('Password reset email failed: ' . $mail->ErrorInfo);
+                $del = $conn->prepare('DELETE FROM password_resets WHERE email = ?');
+                $del->bind_param('s', $email);
+                $del->execute();
+                $del->close();
+                $error = 'Impossible d’envoyer le code pour le moment. Réessayez plus tard.';
             }
         }
         $check->close();
@@ -124,26 +136,40 @@ HTML;
 
 // ── STEP 2: User submits the 6-digit code ────────────────────────────────────
 if (isset($_POST['verify_code'])) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
     $email = $_SESSION['reset_email'] ?? '';
-    $code  = trim($_POST['code']);
+    $code = trim($_POST['code'] ?? '');
+    $attempts = (int)($_SESSION['reset_code_attempts'] ?? 0);
 
-    $chk = $conn->prepare("SELECT id FROM password_resets WHERE email = ? AND code = ? AND expires_at > NOW()");
-    $chk->bind_param("ss", $email, $code);
-    $chk->execute();
-    $chk->store_result();
-
-    if ($chk->num_rows > 0) {
-        $_SESSION['reset_verified'] = true;
-        $step = 'reset';
+    if ($email === '' || $attempts >= 5) {
+        $error = 'Trop de tentatives. Demandez un nouveau code.';
+        $step = 'email';
+        unset($_SESSION['reset_email'], $_SESSION['reset_verified'], $_SESSION['reset_code_attempts']);
+    } elseif (!preg_match('/^[0-9]{6}$/', $code)) {
+        $_SESSION['reset_code_attempts'] = $attempts + 1;
+        $error = 'Code invalide ou expiré.';
+        $step = 'code';
     } else {
-        $error = "Code invalide ou expiré.";
-        $step  = 'code';
+        $chk = $conn->prepare("SELECT id FROM password_resets WHERE email = ? AND code = ? AND expires_at > NOW()");
+        $chk->bind_param("ss", $email, $code);
+        $chk->execute();
+        $chk->store_result();
+        if ($chk->num_rows > 0) {
+            $_SESSION['reset_verified'] = true;
+            $_SESSION['reset_code_attempts'] = 0;
+            $step = 'reset';
+        } else {
+            $_SESSION['reset_code_attempts'] = $attempts + 1;
+            $error = 'Code invalide ou expiré.';
+            $step = 'code';
+        }
+        $chk->close();
     }
-    $chk->close();
 }
 
 // ── STEP 3: User sets new password ───────────────────────────────────────────
 if (isset($_POST['new_password'])) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
     $email    = $_SESSION['reset_email'] ?? '';
     $verified = $_SESSION['reset_verified'] ?? false;
     $pass1    = $_POST['password'];
@@ -567,6 +593,7 @@ if (!empty($_POST)) {
             <?php endif; ?>
 
             <form method="POST" novalidate>
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                 <div class="form-group">
                     <label for="password">Nouveau mot de passe</label>
                     <div class="input-wrap">
@@ -611,6 +638,7 @@ if (!empty($_POST)) {
             <?php endif; ?>
 
             <form method="POST" novalidate>
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                 <div class="form-group">
                     <label for="code">Code à 6 chiffres</label>
                     <div class="input-wrap">
@@ -643,6 +671,7 @@ if (!empty($_POST)) {
             <?php endif; ?>
 
             <form method="POST" novalidate>
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                 <div class="form-group">
                     <label for="email">Adresse email</label>
                     <div class="input-wrap">
