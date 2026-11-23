@@ -17,7 +17,7 @@ $category = $conn->real_escape_string($category);
 $gender   = $conn->real_escape_string($gender);
 
 /* Build query */
-$query = "SELECT * FROM products WHERE 1";
+$query = "SELECT * FROM products WHERE available = 1";
 if ($search   !== '') $query .= " AND name LIKE '%$search%'";
 if ($category !== '') $query .= " AND category='$category'";
 if ($gender   !== '') $query .= " AND gender='$gender'";
