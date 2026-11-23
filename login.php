@@ -3,6 +3,8 @@ session_start();
 include("db.php");
 
 $error = "";
+if (empty($_SESSION["csrf_token"])) { $_SESSION["csrf_token"] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION["csrf_token"];
 $attempts_key = 'login_attempts_' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
 $lockout_key  = 'login_lockout_'  . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
 
@@ -15,6 +17,7 @@ $attempts    = $_SESSION[$attempts_key];
 $remaining   = max(0, $_SESSION[$lockout_key] - time());
 
 if (isset($_POST['login']) && !$is_locked) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
 
     $email    = trim($_POST['email']);
     $password = $_POST['password'];
@@ -557,6 +560,7 @@ if (isset($_POST['login']) && !$is_locked) {
             <?php endif; ?>
 
             <form method="POST" novalidate>
+<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
                 <div class="form-group">
                     <label for="email">Adresse email</label>
