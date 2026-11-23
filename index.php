@@ -1,6 +1,8 @@
 <?php
 session_start();
 include("db.php");
+if (empty($_SESSION["csrf_token"])) { $_SESSION["csrf_token"] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION["csrf_token"];
 
 /* Sanitize input */
 $search   = $_GET['search']    ?? '';
@@ -533,6 +535,7 @@ if (isset($_SESSION['user_id'])) {
                 <button class="btn-rent" disabled><span>Indisponible</span></button>
             <?php else: ?>
                 <form action="add_cart.php" method="POST" class="cart-form">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                     <input type="hidden" name="product_id" value="<?php echo $pid; ?>">
                     <div class="size-select-wrap">
                         <select name="size" class="size-sel" data-pid="<?php echo $pid; ?>">
