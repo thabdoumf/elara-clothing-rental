@@ -7,7 +7,10 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-if (!isset($_POST['product_id'], $_POST['size'])) {
+$sessionToken = $_SESSION['csrf_token'] ?? '';
+if (!$sessionToken || !hash_equals($sessionToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['product_id'], $_POST['size'])) {
     header("Location: index.php");
     exit();
 }
