@@ -11,6 +11,11 @@ $adminName = $_SESSION['user_name'] ?? 'Admin';
 $id        = (int)($_GET['id'] ?? 0);
 $error     = "";
 
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
+
 $stmt = $conn->prepare("SELECT * FROM products WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
@@ -547,11 +552,11 @@ while ($c = $categories->fetch_assoc()) $catList[] = $c['category'];
                     <div class="submit-row">
                         <button type="submit" name="update" class="btn-submit">✓ Enregistrer</button>
                         <a href="dashboard.php" class="btn-cancel">← Annuler</a>
-                        <a href="delete_product.php?id=<?php echo $id; ?>"
-                           class="btn-delete-product"
-                           onclick="return confirm('Supprimer définitivement ce produit ?')">
-                            ✕ Supprimer
-                        </a>
+                        <form method="POST" action="delete_product.php" style="margin-left:auto;" onsubmit="return confirm('Supprimer définitivement ce produit ?')">
+                            <input type="hidden" name="id" value="<?php echo (int)$id; ?>">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                            <button type="submit" class="btn-delete-product" style="background:transparent;cursor:pointer;">✕ Supprimer</button>
+                        </form>
                     </div>
 
                 </form>
