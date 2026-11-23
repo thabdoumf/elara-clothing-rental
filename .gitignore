@@ -1,0 +1,14 @@
+# Local configuration
+/config.local.php
+.env
+.env.*
+
+# Dependencies
+/vendor/
+
+# Logs
+*.log
+
+# Operating system
+.DS_Store
+Thumbs.db
