@@ -107,8 +107,10 @@ if (isset($_POST['update'])) {
         $updateStmt->close();
         $insertStmt->close();
 
-        header("Location: dashboard.php");
-        exit();
+        if (!$error) {
+            header("Location: dashboard.php");
+            exit();
+        }
     }
 }
 
