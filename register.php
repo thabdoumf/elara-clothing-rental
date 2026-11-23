@@ -26,8 +26,7 @@ function sendWelcomeMail(string $toEmail, string $toName): bool {
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
-        $mail->SMTPDebug = 4;
-        $mail->Debugoutput = 'html';
+        $mail->SMTPDebug = 0;
         $mail->Host       = SMTP_HOST;
         $mail->SMTPAuth   = true;
         $mail->Username   = SMTP_USER;
@@ -135,10 +134,7 @@ HTML;
         $mail->send();
         return true;
     } catch (Exception $e) {
-        echo "<pre style='background:#fee;padding:20px;margin:20px;border:2px solid red;'>";
-        echo "<b>MAIL ERROR:</b> " . htmlspecialchars($mail->ErrorInfo) . "
-";
-        echo "</pre>";
+        error_log('Welcome email failed: ' . $mail->ErrorInfo);
         return false;
     }
 }
