@@ -2,7 +2,7 @@
 session_start();
 include("db.php");
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
     header("Location: index.php");
     exit();
 }
@@ -642,8 +642,11 @@ $adminName = $_SESSION['user_name'] ?? 'Admin';
                     <td>
                         <div class="action-btns">
                             <a href="edit_product.php?id=<?php echo (int)$row['id']; ?>" class="btn-edit">✏ Éditer</a>
-                            <a href="delete_product.php?id=<?php echo (int)$row['id']; ?>" class="btn-delete"
-                               onclick="return confirm('Supprimer ce produit ?')">✕ Suppr.</a>
+                            <form method="POST" action="delete_product.php" onsubmit="return confirm('Supprimer ce produit ?')">
+                                <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                <button type="submit" class="btn-delete">✕ Suppr.</button>
+                            </form>
                         </div>
                     </td>
                 </tr>
@@ -748,16 +751,25 @@ $adminName = $_SESSION['user_name'] ?? 'Admin';
                     </div>
                     <div class="r-actions">
                         <?php if ($st === 'pending'): ?>
-                            <a href="update_rental.php?id=<?php echo (int)$r['id']; ?>&action=approve&redirect_status=<?php echo urlencode($statusFilter); ?>&redirect_gender=<?php echo urlencode($gender); ?>"
-                               class="btn-approve"
-                               onclick="return confirm('Approuver cette location pour <?php echo htmlspecialchars(addslashes($r['client_name'])); ?> ?')">✓ Approuver</a>
-                            <a href="update_rental.php?id=<?php echo (int)$r['id']; ?>&action=reject&redirect_status=<?php echo urlencode($statusFilter); ?>&redirect_gender=<?php echo urlencode($gender); ?>"
-                               class="btn-reject"
-                               onclick="return confirm('Rejeter cette location ?')">✕ Rejeter</a>
+                            <?php foreach (['approve' => '✓ Approuver', 'reject' => '✕ Rejeter'] as $rentalAction => $actionLabel): ?>
+                            <form method="POST" action="update_rental.php" onsubmit="return confirm('Confirmer cette action ?')">
+                                <input type="hidden" name="id" value="<?php echo (int)$r['id']; ?>">
+                                <input type="hidden" name="action" value="<?php echo $rentalAction; ?>">
+                                <input type="hidden" name="redirect_status" value="<?php echo htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="redirect_gender" value="<?php echo htmlspecialchars($gender, ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                <button type="submit" class="<?php echo $rentalAction === 'approve' ? 'btn-approve' : 'btn-reject'; ?>"><?php echo $actionLabel; ?></button>
+                            </form>
+                            <?php endforeach; ?>
                         <?php elseif ($st === 'approved'): ?>
-                            <a href="update_rental.php?id=<?php echo (int)$r['id']; ?>&action=return&redirect_status=<?php echo urlencode($statusFilter); ?>&redirect_gender=<?php echo urlencode($gender); ?>"
-                               class="btn-return"
-                               onclick="return confirm('Marquer comme retourné ?')">↩ Retour</a>
+                            <form method="POST" action="update_rental.php" onsubmit="return confirm('Marquer comme retourné ?')">
+                                <input type="hidden" name="id" value="<?php echo (int)$r['id']; ?>">
+                                <input type="hidden" name="action" value="return">
+                                <input type="hidden" name="redirect_status" value="<?php echo htmlspecialchars($statusFilter, ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="redirect_gender" value="<?php echo htmlspecialchars($gender, ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                <button type="submit" class="btn-return">↩ Retour</button>
+                            </form>
                         <?php endif; ?>
                     </div>
                 </div>
