@@ -7,6 +7,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'user') {
 }
 
 $user_id   = (int)$_SESSION['user_id'];
+if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION['csrf_token'];
 $rental_id = (int)($_GET['rental_id'] ?? 0);
 
 if ($rental_id <= 0) { header("Location: my_rentals.php"); exit(); }
@@ -37,6 +39,7 @@ $error   = '';
 $success = false;
 
 if (!$alreadyReviewed && isset($_POST['submit_review'])) {
+    if (!hash_equals($csrfToken, $_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Invalid request token.'); }
     $rating  = (int)($_POST['rating'] ?? 0);
     $comment = trim($_POST['comment'] ?? '');
 
@@ -256,6 +259,7 @@ $userName = $_SESSION['user_name'] ?? '';
             <?php endif; ?>
 
             <form method="POST" novalidate>
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
                 <!-- Star rating -->
                 <div class="star-section">
